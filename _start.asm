@@ -6,21 +6,18 @@ extern print_string
 extern exit
 extern open_file
 extern read_line
+extern init_memory
 
 section .text
 global _start
 _start:
-	;TODO get file from args
-	;expected logic
-	;3. tokanize a line (lexer)
-	;4. parse a line (parser)
-	;5. run line (JIT)
-	;6. move to next line
-	;7. repeat till EOF
+	call init_memory ;place a page adress at page_head
+
 	mov rdi, file ;file name
 	xor rsi, rsi ;flags
 	xor rdx, rdx ;mode
 	call open_file
+
 
 	mov [file_buffer], rax
 	mov [file_descriptor], r12

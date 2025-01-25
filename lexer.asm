@@ -4,20 +4,15 @@
 %define OPERATOR 2
 %define KEYWORD 3
 %define TYPE 4
-%define SEMICOLON 5
+%define FUNCTION 5
+%define LABEL 6
+%define SEMICOLON 7
 
 ;constent types/variable types/type types
-%define U8 0
-%define U16 1
-%define U32 2
-%define U64 3
-%define I8 4
-%define I16 5
-%define I32 6
-%define I64 7
-%define F32 8
-%define F64 9
-%define STRING 10
+%define U64 0
+%define I64 1
+%define F64 2
+%define STRING 3
 
 ;keyword types
 %define IF 0
@@ -27,6 +22,8 @@
 global create_next_token
 
 extern exit
+extern alloc_token
+extern free_token
 
 is_lower_case:
 ret
@@ -36,10 +33,6 @@ ret
 
 is_num:
 ret
-
-alloc_token:
-
-free_token:
 
 ;create new token and allocate memory for it
 ;clobers:
