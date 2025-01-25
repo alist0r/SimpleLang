@@ -1,0 +1,37 @@
+There are three main keywords
+if
+goto
+endif
+
+the following operators
+! not
+~ bitwise not
++ add
+- sub
+= assignment
+== equ
+>= greater then equal
+<= less then equal
+> greater then
+< less then
+!= not equal
+&& logical and
+|| logical or
+& bitwise and
+| bitwise or
+<< shift left
+>> shift right
+
+the following datatypes will also be reserved
+
+u8
+u16
+u32
+u64
+i8
+i16
+i32
+i64
+f16 (if this exists)
+f32
+f64
