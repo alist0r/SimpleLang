@@ -18,7 +18,7 @@
 ;offset        first page
 ;0     +------------------------+ the space the bitmap takes up is implicit
 ;      |         bitmap         | and thus unmaped saving 57 bytes
-;455   +------------------------+
+;455   +------------------------+ the first bit marks 463 and then so on
 ;      |          link          |  -> next page
 ;463   +------------------------+
 ;      |                        |
@@ -121,20 +121,53 @@ init_memory:
 	mov [page_head], rax ;move address of first page into page_head
 
 	ret
+;r12 token type
+;rbx page addr
+check_bitmap:
+	;find first 0
+	;mark bit of first 0
+	;find congruent bits equ to size
+	;mark bits in bitmap
+	;return address on success
+	;return 0 on fail
+	ret
 
 ;allocates memory for a token used by lexer and parser
 ;if page is full calls alloc_page
-;clobers
+;clobers rbx
 ;inputs:
-;	token type
+;	rax token type
 ;outputs:
-;	adress of token space
+;	rax adress of token space
 alloc_token:
-	;search bitmap of current page
-	;if free space found set bitmap and ret address
-	;elseif space not found check next page and do prv step
-	;elseif page not found alloc a new page and alloc token on new page
-	
+	mov rbx, [page_head] ;get address of first page
+
+	.mapcheck:
+	mov r12, rax ;save token type
+	call check_bitmap
+	cmp rax, 0 ;check_bitmap will set 0 in rax on bitmap full
+	je .page_full
+
+	;mapcheck returnd an addr in rax
+	ret
+
+	.page_full:
+	cmp rbx[455], 0 ;see if there is another page, 455 is offset of link
+	je .new_page_needed
+
+	mov rbx, rbx[455] ;setup check of next page
+	jmp .mapcheck
+
+	.new_page_needed:
+	push rax ;save token type
+	push rbx ;save current page
+	call alloc_page
+
+	pop rbx ;get page back
+	mov rbx[455], rax ;set ptr to new page addr
+	mov rbx, rax ;set rbx to new page addr
+	pop rax ;get token type back
+	jmp .mapcheck ;reuse code, should always succeed since new page empty
 
 ;gets a new page using mmap and puts it at the tail of the page link
 ;clobers rax, rdi, rsi, rdx, r10, r8, r9, rbx
@@ -156,13 +189,12 @@ alloc_page:
 	mov r9, 0 ;pgoff (page offset i think? i dont know what this does)
 	syscall
 
+	;TODO error checking
+
 	pop rbx ;put old page addr in rbx
 	mov rbx[455], rax ;put new address in dedicated ptr location in page
 	ret
 	
-	
-	
-
 ;frees the given page adress and fills in that gap in the linked list
 ;if the given page is the only allocated page then does nothing
 ;clobers
@@ -173,6 +205,7 @@ free_page:
 	;chage ptr to pointer of head if freeing first page
 	;change ptr of last page to page after if middle page
 	;change ptr of last page to 0 if last page
+	ret
 
 ;updates bitmap on page the token is on to indicate that memory space is free
 ;clobers
@@ -183,6 +216,7 @@ free_token:
 	;change bitsin bitmap of token addr to 0
 	;change pts of neibour tokens
 	;if page token is on is empty free page
+	ret
 
 section .data
 page_head: dq 0
