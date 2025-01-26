@@ -3,7 +3,7 @@
 %define LITERAL 1
 %define OPERATOR 2
 %define KEYWORD 3
-%define TYPE 4
+%define DEFINITION 4
 %define FUNCTION 5
 %define LABEL 6
 %define SEMICOLON 7

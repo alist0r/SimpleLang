@@ -18,7 +18,6 @@ _start:
 	xor rdx, rdx ;mode
 	call open_file
 
-
 	mov [file_buffer], rax
 	mov [file_descriptor], r12
 	mov [file_len], r13
@@ -28,6 +27,13 @@ _start:
 	call print_string
 
 	mov rdi, 0
+
+	;loop execution of read file untill EOF lexer will find EOF
+	;.lexer_call:
+	;call lexer
+	;call parser
+	;jmp .lexer_call
+
 	call exit
 
 section .rodata
