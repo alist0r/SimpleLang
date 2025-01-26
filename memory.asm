@@ -7,13 +7,10 @@
 ;allocated on will be updated and then be searched to see if the page is empty.
 ;If a page is empty, that page will be freed unless it is the last remaining
 ;page. In that case the page will be saved for the next allocation to avoid
-;another mmap call.
+;another mmap call. The tokens will also be ptr to each ther in a double linked
+;list to make resolving them while parsing easier to program
 
 ;The flowing is a diagram of how these pages will be allocated:
-;
-;NOTE the addresses on the diagram are of the first used byte of that section.
-;the 4096th byte is not used by the page but marks the first address not used
-;by the page in its contiguous allocation
 ;
 ;                 head
 ;                  |
@@ -32,7 +29,7 @@
 ;      |                        |
 ;      |                        |
 ;      |                        |
-;4096  +------------------------+
+;4095  +------------------------+
 
 %define VARIABLE 0
 %define LITERAL 1
