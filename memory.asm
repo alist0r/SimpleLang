@@ -96,33 +96,29 @@ global alloc_token
 global free_token
 
 section .text
-;get first page used for dynamic memory from linux using mmap and set page_head
+;get first page used for dynamic memory and places the addr at page_head
 ;clobers rax, rdi, rsi, rdx, r10, r8, r9
-;inputs
+;inputs:
 ;	none
-;outputs
+;outputs:
 ;	none
 init_memory:
-	;mmap call to get first page
-	mov rax, 9 ;mmap
-	xor rdi, rdi ;addr
-	mov rsi, 4096 ;len
-	mov rdx, 0x03 ;PROT_READ | PROT_WRITE
-	mov r10, 0x22 ;MAP_ANONYMOUS
-	mov r8, -1 ;file descriptor
-	mov r9, 0 ;pgoff (page offset i think? i dont know what this does)
-	syscall
+	call alloc_page
 
 	;the page does not need to be initialized as for security reasons the os
 	;should 0 everything
 
-	;TODO error checking
-
 	mov [page_head], rax ;move address of first page into page_head
 
 	ret
-;r12 token type
-;rbx page addr
+;search bitmap for free space and set bitmap on a success
+;clobers
+;inputs:
+;	r12 token type
+;	rbx page addr
+;outputs:
+;	rax addr
+
 check_bitmap:
 	;find first 0
 	;mark bit of first 0
@@ -134,22 +130,22 @@ check_bitmap:
 
 ;allocates memory for a token used by lexer and parser
 ;if page is full calls alloc_page
-;clobers rbx
+;clobers rax, rbx, r12
 ;inputs:
 ;	rax token type
 ;outputs:
 ;	rax adress of token space
+;	r12 token type
 alloc_token:
 	mov rbx, [page_head] ;get address of first page
+	mov r12, rax ;save token type, r12 should be preserved in proc/calls
 
 	.mapcheck:
-	mov r12, rax ;save token type
 	call check_bitmap
 	cmp rax, 0 ;check_bitmap will set 0 in rax on bitmap full
 	je .page_full
 
-	;mapcheck returnd an addr in rax
-	ret
+	ret ;mapcheck returnd an addr in rax
 
 	.page_full:
 	cmp rbx[455], 0 ;see if there is another page, 455 is offset of link
@@ -159,17 +155,15 @@ alloc_token:
 	jmp .mapcheck
 
 	.new_page_needed:
-	push rax ;save token type
 	push rbx ;save current page
 	call alloc_page
 
 	pop rbx ;get page back
 	mov rbx[455], rax ;set ptr to new page addr
 	mov rbx, rax ;set rbx to new page addr
-	pop rax ;get token type back
 	jmp .mapcheck ;reuse code, should always succeed since new page empty
 
-;gets a new page using mmap and puts it at the tail of the page link
+;gets a new page using mmap
 ;clobers rax, rdi, rsi, rdx, r10, r8, r9, rbx
 ;inputs
 ;	rax = prv page addr
@@ -177,8 +171,6 @@ alloc_token:
 ;outputs
 ;	rax = new page addr
 alloc_page:
-	push rax ;save old page addr
-
 	;mmap call to get new page
 	mov rax, 9 ;mmap
 	xor rdi, rdi ;addr
@@ -191,8 +183,6 @@ alloc_page:
 
 	;TODO error checking
 
-	pop rbx ;put old page addr in rbx
-	mov rbx[455], rax ;put new address in dedicated ptr location in page
 	ret
 	
 ;frees the given page adress and fills in that gap in the linked list
