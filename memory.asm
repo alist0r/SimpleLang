@@ -95,10 +95,7 @@ global init_memory
 global alloc_token
 global free_token
 
-section .text ;initalizes page memory setting the page's bitmap and ptr ;clobers rdx, rdi, rcx ;inputs ;	rax = address of page to be initalized
-;outputs
-;	none
-
+section .text
 ;get first page used for dynamic memory from linux using mmap and set page_head
 ;clobers rax, rdi, rsi, rdx, r10, r8, r9
 ;inputs
