@@ -19,11 +19,11 @@
 ;                  |
 ;                  v
 ;offset        first page
-;0     +------------------------+
-;      |         bitmap         |
-;512   +------------------------+
+;0     +------------------------+ the space the bitmap takes up is implicit
+;      |         bitmap         | and thus unmaped saving 57 bytes
+;455   +------------------------+
 ;      |          link          |  -> next page
-;520   +------------------------+
+;463   +------------------------+
 ;      |                        |
 ;      |                        |
 ;      |                        |
@@ -46,48 +46,53 @@
 
 ;sizes of tokens in bytes
 ;token type 1 byte
+;prv token ptr 8 bytes
+;next token ptr 8 bytes
 ;var type 1 byte
 ;key (where its in the heap) 8 bytes
-%define VARIABLE_SIZE
+%define VARIABLE_SIZE 26
 
 ;token type 1 byte
 ;prv token ptr 8 bytes
 ;next token ptr 8 bytes
 ;var type 1 byte
-;value 8 bytes
-%define LITERAL_SIZE 1
+;value/ptr if string 8 bytes
+;length of string if string 8 bytes
+%define LITERAL_SIZE 34
 
 ;token type 1 byte
 ;prv token ptr 8 bytes
 ;next token ptr 8 bytes
 ;op type 1 byte
-%define OPERATOR_SIZE 2
+%define OPERATOR_SIZE 18
 
 ;token type 1 byte
 ;prv token ptr 8 bytes
 ;next token ptr 8 bytes
-;keyword type
-%define KEYWORD_SIZE 3
+;keyword type 1 byte
+%define KEYWORD_SIZE 18
 
 ;token type 1 byte
 ;prv token ptr 8 bytes
 ;next token ptr 8 bytes
-%define DEFINITION_SIZE 4
+;def type 1 byte
+%define DEFINITION_SIZE 18
 
 ;token type 1 byte
 ;prv token ptr 8 bytes
 ;next token ptr 8 bytes
 ;TODO ?
-%define FUNCTION_SIZE 5
+%define FUNCTION_SIZE 9
 
 ;token type 1 byte
 ;prv token ptr 8 bytes
 ;next token ptr 8 bytes
-%define LABEL_SIZE 9
+;label file offset/position 8 bytes
+%define LABEL_SIZE 25
 
 ;token type 1 byte
 ;prv token ptr 8 bytes
-%define SEMICOLON_SIZE 7
+%define SEMICOLON_SIZE 9
 
 global init_memory
 global alloc_token
@@ -96,18 +101,6 @@ global free_token
 section .text ;initalizes page memory setting the page's bitmap and ptr ;clobers rdx, rdi, rcx ;inputs ;	rax = address of page to be initalized
 ;outputs
 ;	none
-init_page:
-	mov rdi, rax ;put base address in rdi
-	mov rdx, 0xFFFFFFFFFFFFFFFF ;put all 1s in rdx to mark used memory
-	mov rcx, 64 ;the memory map will be marked by the bitmap which uses 64*8 bytes
-
-	;NOTE i do not 0 the rest of the memory becuse that is done by the os
-
-	.set_mem:
-	mov [rdi], rdx ;set memory to 1s
-	add rdi, 8 ;change addr to next word
-	loop .set_mem
-	ret
 
 ;get first page used for dynamic memory from linux using mmap and set page_head
 ;clobers rax, rdi, rsi, rdx, r10, r8, r9
@@ -126,26 +119,55 @@ init_memory:
 	mov r9, 0 ;pgoff (page offset i think? i dont know what this does)
 	syscall
 
+	;the page does not need to be initialized as for security reasons the os
+	;should 0 everything
+
 	;TODO error checking
 
 	mov [page_head], rax ;move address of first page into page_head
-	call init_page ;sets up memory of new page
 
 	ret
 
 ;allocates memory for a token used by lexer and parser
 ;if page is full calls alloc_page
 ;clobers
-;inputs
+;inputs:
 ;	token type
-;outputs
+;outputs:
+;	adress of token space
 alloc_token:
+	;search bitmap of current page
+	;if free space found set bitmap and ret address
+	;elseif space not found check next page and do prv step
+	;elseif page not found alloc a new page and alloc token on new page
+	
 
 ;gets a new page using mmap and puts it at the tail of the page link
-;clobers
-;inputsa
+;clobers rax, rdi, rsi, rdx, r10, r8, r9, rbx
+;inputs
+;	rax = prv page addr
+;	
 ;outputs
+;	rax = new page addr
 alloc_page:
+	push rax ;save old page addr
+
+	;mmap call to get new page
+	mov rax, 9 ;mmap
+	xor rdi, rdi ;addr
+	mov rsi, 4096 ;len
+	mov rdx, 0x03 ;PROT_READ | PROT_WRITE
+	mov r10, 0x22 ;MAP_ANONYMOUS
+	mov r8, -1 ;file descriptor
+	mov r9, 0 ;pgoff (page offset i think? i dont know what this does)
+	syscall
+
+	pop rbx ;put old page addr in rbx
+	mov rbx[455], rax ;put new address in dedicated ptr location in page
+	ret
+	
+	
+	
 
 ;frees the given page adress and fills in that gap in the linked list
 ;if the given page is the only allocated page then does nothing
@@ -153,13 +175,22 @@ alloc_page:
 ;inputsa
 ;outputs
 free_page:
+	;munmap given page
+	;chage ptr to pointer of head if freeing first page
+	;change ptr of last page to page after if middle page
+	;change ptr of last page to 0 if last page
 
 ;updates bitmap on page the token is on to indicate that memory space is free
 ;clobers
-;inputsa
+;inputs
+;	token addr
 ;outputs
 free_token:
+	;change bitsin bitmap of token addr to 0
+	;change pts of neibour tokens
+	;if page token is on is empty free page
 
 section .data
 page_head: dq 0
+token_head: dq 0
 variable_count: dq 0
