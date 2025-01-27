@@ -130,7 +130,7 @@ check_bitmap:
 
 ;allocates memory for a token used by lexer and parser
 ;if page is full calls alloc_page
-;clobers rax, rbx, r12
+;clobers rax, rbx, r12, rdx
 ;inputs:
 ;	rax token type
 ;outputs:
@@ -148,9 +148,11 @@ alloc_token:
 	ret ;mapcheck returnd an addr in rax
 
 	.page_full:
-	cmp rbx[455], 0 ;see if there is another page, 455 is offset of link
+	mov rdx, rbx[455] ;grab ptr value for use in cmp, 455 is offset of link
+	cmp rdx, 0 ;see if there is another page, 
 	je .new_page_needed
 
+	;page ptr is not null	
 	mov rbx, rbx[455] ;setup check of next page
 	jmp .mapcheck
 
