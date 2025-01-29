@@ -8,6 +8,57 @@
 %define LABEL 6
 %define SEMICOLON 7
 
+;sizes of tokens in bytes
+;token type 1 byte
+;prv token ptr 8 bytes
+;next token ptr 8 bytes
+;var type 1 byte
+;key (where its in the heap) 8 bytes
+%define VARIABLE_SIZE 26
+
+;token type 1 byte
+;prv token ptr 8 bytes
+;next token ptr 8 bytes
+;var type 1 byte
+;value/ptr if string 8 bytes
+;length of string if string 8 bytes
+%define LITERAL_SIZE 34
+
+;token type 1 byte
+;prv token ptr 8 bytes
+;next token ptr 8 bytes
+;op type 1 byte
+%define OPERATOR_SIZE 18
+
+;token type 1 byte
+;prv token ptr 8 bytes
+;next token ptr 8 bytes
+;keyword type 1 byte
+%define KEYWORD_SIZE 18
+
+;token type 1 byte
+;prv token ptr 8 bytes
+;next token ptr 8 bytes
+;def type 1 byte
+%define DEFINITION_SIZE 18
+
+;token type 1 byte
+;prv token ptr 8 bytes
+;next token ptr 8 bytes
+;TODO ?
+%define FUNCTION_SIZE 9
+
+;token type 1 byte
+;prv token ptr 8 bytes
+;next token ptr 8 bytes
+;label file offset/position 8 bytes
+%define LABEL_SIZE 25
+
+;token type 1 byte
+;prv token ptr 8 bytes
+%define SEMICOLON_SIZE 9
+
+
 ;constent types/variable types/type types
 %define U64 0
 %define I64 1

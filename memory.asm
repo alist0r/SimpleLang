@@ -31,69 +31,9 @@
 ;      |                        |
 ;4095  +------------------------+
 
-%define VARIABLE 0
-%define LITERAL 1
-%define OPERATOR 2
-%define KEYWORD 3
-%define DEFINITION 4
-%define FUNCTION 5
-%define LABEL 6
-%define SEMICOLON 7
-
-
-;sizes of tokens in bytes
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;var type 1 byte
-;key (where its in the heap) 8 bytes
-%define VARIABLE_SIZE 26
-
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;var type 1 byte
-;value/ptr if string 8 bytes
-;length of string if string 8 bytes
-%define LITERAL_SIZE 34
-
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;op type 1 byte
-%define OPERATOR_SIZE 18
-
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;keyword type 1 byte
-%define KEYWORD_SIZE 18
-
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;def type 1 byte
-%define DEFINITION_SIZE 18
-
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;TODO ?
-%define FUNCTION_SIZE 9
-
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;label file offset/position 8 bytes
-%define LABEL_SIZE 25
-
-;token type 1 byte
-;prv token ptr 8 bytes
-%define SEMICOLON_SIZE 9
-
 global init_memory
-global alloc_token
-global free_token
+global alloc
+global free
 
 section .text
 ;get first page used for dynamic memory and places the addr at page_head
@@ -111,34 +51,129 @@ init_memory:
 	mov [page_head], rax ;move address of first page into page_head
 
 	ret
+
 ;search bitmap for free space and set bitmap on a success
-;clobers
+;clobers rax, rdx, rsi, rcx
 ;inputs:
-;	r12 token type
+;	r12 allocation size
 ;	rbx page addr
 ;outputs:
 ;	rax addr
-
+;TODO this implimentation is messy
 check_bitmap:
-	;find first 0
-	;mark bit of first 0
-	;find congruent bits equ to size
-	;mark bits in bitmap
-	;return address on success
-	;return 0 on fail
+	xor r9, r9 ;clear r9 which will be a 0 counter
+	xor rsi, rsi ;prepare rsi for searching bitmap
+	xor rdx, rdx ;prepare rdx for storing 1 byte from bitmap
+	mov rcx, 57 ;57 * 8 = 456 which is len of bitmap, rdx can hold 8 bytes
+	xor rax, rax ;prepare rax which will later store the offset of alloc
+
+	;rsi has offset rbx has page base
+	.get_next_word:
+	mov rdx, rbx[rsi] ;put current byte of bitmap in dl
+	mov r8, rcx ;save which word we were at
+
+	mov rcx, 64 ;64 bits in a register to check
+	.check_for_zero:
+	mov rax, 0x7FFFFFFFFFFFFFFF ;used to cmpare with rdx 011111... etc
+	or rdx, rax ;check significant bit 0 nor 0 = 1
+	not rdx ;negation of or produces nor
+	cmp rdx, 0 ;not instruction wont set zero flag
+	jnz .found_zero
+
+	;zero not found
+	xor r9, r9 ;reset counter
+
+	.shift:
+	shl rdx, 1 ;check next bit of word on next loop
+	loop .check_for_zero ;if not 64 then go again
+
+	;if out of bits
+	mov r8, rcx ;get word counter back
+	add rsi, 8 ;check next 64 bits
+	loop .get_next_word
+	
+	;at this point we have reached the end of the bitmap
+	;return 0 no memory to alloc	
+	mov rax, 0
 	ret
 
-;allocates memory for a token used by lexer and parser
+	.found_zero:
+	cmp r9, 0 
+	jnz .not_first
+	;first 0
+	mov rdi, rsi
+	mov r10, rcx
+	mov r11, r8	
+
+	.not_first:
+	inc r9
+	cmp r9, r12
+	je .valid_space_found
+	jmp .shift
+
+	.valid_space_found:
+	;put into rax the offset of the first zero
+	;page addr + 463 + (64 - r10) + ((57 - r11) * 64)
+	mov rax, 64 ;get max of scale
+	sub rax, r10 ;subtract counter
+	push rax ;save result of calculation for later
+
+	mov rax, 57 ;get max of scale
+	sub rax, r11 ;subtract counter
+	mov rdx, 64 ;need to mul by 64
+	mul rdx ;multiplay rax by 64
+	
+	add rax, rbx ;add address of page to word offset
+	pop rdx ;get bit offset
+	add rax, rdx ;add bit offset
+	add rax, 463 ;add offset of actual usable space
+
+	push rax ;save addr
+
+	;at this point we found free space and an adress we just need to flip the bits in the bitmap
+	xor r9, r9 ;use r9 as a counter
+	.write_map:
+	mov rdx, rbx[rdi] ;data word from bitmap
+	mov r8, rcx ;save word counter
+	mov rcx, r10 ;bit counter
+
+	.write_bit:
+	mov rax, 0x0000000000000001 ;bit to be shifted
+	mov r10, rcx ;save counter
+	dec rcx ;shift left counter - 1 bits
+	shl rax, cl ;shift left rax rcx times
+	mov rcx, r10 ;get counter back
+	or rdx, rax ;mark that 1 in the data word
+	inc r9 ;++
+	cmp r9, r12 ;if equal then done
+	je .bitmap_written 
+	loop .write_bit
+
+	mov rbx[rdi], rdx ;put word back in memory
+	add rdi, 8 ;rdi point to next word
+	mov rcx, r8 ;move counter to rcx for loop
+	mov r10, 64 ;setup bitcountr
+	jmp .write_map
+
+	.bitmap_written:
+	mov rbx[rdi], rdx ;put word back in memory
+	pop rax ;get addr
+
+	ret
+
+;allocates memory in a page
 ;if page is full calls alloc_page
 ;clobers rax, rbx, r12, rdx
 ;inputs:
-;	rax token type
+;	rax allocated space in bytes
 ;outputs:
-;	rax adress of token space
-;	r12 token type
-alloc_token:
+;	rax adress of allocated space
+;NOTE currently there is no way to handel large allocations greater then
+;	how much can fit on a page
+alloc:
+	;TODO check if alloc request is greater then 3640
 	mov rbx, [page_head] ;get address of first page
-	mov r12, rax ;save token type, r12 should be preserved in proc/calls
+	mov r12, rax ;save allocation size, r12 should be preserved in proc/calls
 
 	.mapcheck:
 	call check_bitmap
@@ -204,7 +239,7 @@ free_page:
 ;inputs
 ;	token addr
 ;outputs
-free_token:
+free:
 	;change bitsin bitmap of token addr to 0
 	;change pts of neibour tokens
 	;if page token is on is empty free page

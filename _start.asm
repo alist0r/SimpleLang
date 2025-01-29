@@ -26,14 +26,13 @@ _start:
 	mov rdx, [file_len]
 	call print_string
 
-	mov rdi, 0
-
 	;loop execution of read file untill EOF lexer will find EOF
 	;.lexer_call:
 	;call lexer
 	;call parser
 	;jmp .lexer_call
 
+	mov rdi, 0
 	call exit
 
 section .rodata
