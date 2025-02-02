@@ -127,6 +127,9 @@ check_bitmap:
 	pop rdx ;get bit offset
 	add rax, rdx ;add bit offset
 	add rax, 463 ;add offset of actual usable space
+	
+	mov [rax], r12 ;write size to first 8 bytes
+	add rax, 8 ;return address of the rest of the allocation
 
 	push rax ;save addr
 
@@ -171,6 +174,7 @@ check_bitmap:
 ;NOTE currently there is no way to handel large allocations greater then
 ;	how much can fit on a page
 alloc:
+	add rax, 8 ;8 bytes will be reserved for storeing size for free to use
 	;TODO check if alloc request is greater then 3640
 	mov rbx, [page_head] ;get address of first page
 	mov r12, rax ;save allocation size, r12 should be preserved in proc/calls
