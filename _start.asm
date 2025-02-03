@@ -8,6 +8,9 @@ extern open_file
 extern read_line
 extern init_memory
 
+extern alloc
+extern free
+
 section .text
 global _start
 _start:
@@ -25,6 +28,13 @@ _start:
 	mov rsi, [file_buffer]
 	mov rdx, [file_len]
 	call print_string
+
+	mov rax, 1
+	call alloc
+	mov rbx, [rax - 8]
+	mov rcx, [rax - 16]
+
+	call free
 
 	;loop execution of read file untill EOF lexer will find EOF
 	;.lexer_call:

@@ -128,8 +128,10 @@ check_bitmap:
 	add rax, rdx ;add bit offset
 	add rax, 463 ;add offset of actual usable space
 	
-	mov [rax], r12 ;write size to first 8 bytes
-	add rax, 8 ;return address of the rest of the allocation
+	mov [rax], rbx ;write bitmap addr to first 8 bytes
+	add rax, 8 ;prepare for next write
+	mov [rax], r12 ;write size to next 8 bytes
+	add rax, 8 ;return address of the rest of allocated space
 
 	push rax ;save addr
 
@@ -174,7 +176,7 @@ check_bitmap:
 ;NOTE currently there is no way to handel large allocations greater then
 ;	how much can fit on a page
 alloc:
-	add rax, 8 ;8 bytes will be reserved for storeing size for free to use
+	add rax, 16 ;8 bytes reserv for size another 8 for addr of bitmap
 	;TODO check if alloc request is greater then 3640
 	mov rbx, [page_head] ;get address of first page
 	mov r12, rax ;save allocation size, r12 should be preserved in proc/calls
@@ -241,12 +243,55 @@ free_page:
 ;updates bitmap on page the token is on to indicate that memory space is free
 ;clobers
 ;inputs
-;	token addr
+;	allocated addr
 ;outputs
 free:
-	;change bitsin bitmap of token addr to 0
-	;change pts of neibour tokens
-	;if page token is on is empty free page
+	mov rcx, [rax - 8] ;get size of allocation to free
+	mov rbx, [rax - 16] ;get address of bitmap of page this alloc is on
+
+	;address - bitmap addr - 16 - 463 should be bitmap offset
+	sub rax, rbx ;suntract adress of bitmap
+	sub rax, 16 ;subtract offset of reserved metadata space
+	sub rax, 463 ;suntract offset of memory and bitmap
+	
+	xor rdx, rdx ;clear rdx
+	mov r9, 64 ;div by word size
+	div r9 ;this division will place word containing bit in rax and
+	       ;bit offset in rdx
+
+	;setup offsets
+	mov rdi, rax ;save word offset
+	mov rax, rbx[rdi] ;get word at word offset
+	mov r9, rdx ;save bit offset
+	mov rdx, 0x8000000000000000 ;bit to shift around
+	xchg r9, rcx ;need cl for shr
+	shr rdx, cl ;shr
+	xchg rcx, r9 ;swap back
+
+	.write_bitmap:
+	not rdx ;turn target bit to 0
+	and rax, rdx ;set 1 at target bit to 0
+	inc r9 ;prepare for next bit offset
+	cmp r9, 64 ;if 64 we need a new data word
+	je .next_word
+
+	;same word
+	not rdx ;swap for 1 shifting
+	shr rdx, 1 ;shift to right for next bit
+	loop .write_bitmap
+	jmp .done
+
+	.next_word:
+	mov rax, rbx[rdi] ;put written word back in bitmap
+	add rdi, 8 ;get next word index
+	mov rax, rbx[rdi] ;get word
+	mov rdx, 0x8000000000000000 ;bit to shift around
+	mov r9, 0 ;reset bit offset
+	jmp .write_bitmap	
+
+	.done:
+	mov rax, rbx[rdi] ;put written word back in bitmap
+	;TODO check if bitmap is now empty	
 	ret
 
 section .data
