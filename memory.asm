@@ -69,11 +69,11 @@ check_bitmap:
 
 	;rsi has offset rbx has page base
 	.get_next_word:
-	mov rdx, rbx[rsi] ;put current byte of bitmap in dl
 	mov r8, rcx ;save which word we were at
 
 	mov rcx, 64 ;64 bits in a register to check
 	.check_for_zero:
+	mov rdx, rbx[rsi] ;put current byte of bitmap in dl
 	mov rax, 0x7FFFFFFFFFFFFFFF ;used to cmpare with rdx 011111... etc
 	or rdx, rax ;check significant bit 0 nor 0 = 1
 	not rdx ;negation of or produces nor
@@ -88,7 +88,7 @@ check_bitmap:
 	loop .check_for_zero ;if not 64 then go again
 
 	;if out of bits
-	mov r8, rcx ;get word counter back
+	mov rcx, r8 ;get word counter back
 	add rsi, 8 ;check next 64 bits
 	loop .get_next_word
 	
@@ -231,13 +231,17 @@ alloc_page:
 ;frees the given page adress and fills in that gap in the linked list
 ;if the given page is the only allocated page then does nothing
 ;clobers
-;inputsa
+;inputs
+;	rax = page to free
 ;outputs
 free_page:
-	;munmap given page
-	;chage ptr to pointer of head if freeing first page
-	;change ptr of last page to page after if middle page
-	;change ptr of last page to 0 if last page
+	mov rdi, rax ;adress to be freed
+	mov rax, 11 ;munmap
+	mov rsi, 4096 ;amount to be freed
+	syscall
+
+	;TODO error checking
+
 	ret
 
 ;updates bitmap on page the token is on to indicate that memory space is free
@@ -279,19 +283,70 @@ free:
 	not rdx ;swap for 1 shifting
 	shr rdx, 1 ;shift to right for next bit
 	loop .write_bitmap
-	jmp .done
+	jmp .done_writing
 
 	.next_word:
-	mov rax, rbx[rdi] ;put written word back in bitmap
+	mov rbx[rdi], rax ;put written word back in bitmap
 	add rdi, 8 ;get next word index
 	mov rax, rbx[rdi] ;get word
 	mov rdx, 0x8000000000000000 ;bit to shift around
 	mov r9, 0 ;reset bit offset
 	jmp .write_bitmap	
 
-	.done:
-	mov rax, rbx[rdi] ;put written word back in bitmap
-	;TODO check if bitmap is now empty	
+	.done_writing:
+	mov rbx[rdi], rax ;put written word back in bitmap
+	
+	mov rcx, 57 ;57 words in bitmap
+	xor rdx, rdx ;clear rdx
+	xor rdi, rdi ;reset rdi
+	.check_if_page_empty:
+	mov rdx, rbx[rdi] ;get current word
+	cmp rdx, 0 ;check if 0
+	jne .end ;if not 0 then dont free
+	add rdi, 8 ;prepare to check next word
+	loop .check_if_page_empty
+	;at this point all words are 0 so we can free this page
+
+	;check if only page
+	mov rax, rbx ;get page adress
+	xor rax, page_head ;will be 0 if first page
+	or rax, rbx[455] ;will be 0 if only page
+	cmp rax, 0 ;check if only page
+	jz .end ;if only page dont free
+
+	;check if first page
+	cmp rbx, page_head ;if rbx == page_head then first page
+	je .first_page
+	jmp .middle_page
+
+	.first_page: 
+	mov rdx, rbx[455]
+	mov [page_head], rdx
+	mov rax, rbx
+	jmp .free_call
+
+	.middle_page:
+	;find prv page
+	mov rax, [page_head] ;get first page
+	.find_prv_page:
+	mov rdx, rax[455] ;get next page from first page
+	cmp rdx, rbx ;compare next page to current page
+	je .found_page
+	mov rax, rax[455] ;get next page to check
+	cmp rax, rax ;make sure rax isn't 0 just in case
+	jz .end ;page not found (wtf)
+	jmp .find_prv_page
+
+	.found_page:
+	mov rdx, rbx[455] ;get ptr to next page from freed page
+	mov rax[455], rdx ;replace ptr of freed page with ptr to next page
+	mov rax, rbx ;prepare for free call
+	jmp .free_call
+
+	.free_call:
+	call free_page
+
+	.end:
 	ret
 
 section .data

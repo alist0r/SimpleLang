@@ -29,10 +29,11 @@ _start:
 	mov rdx, [file_len]
 	call print_string
 
-	mov rax, 1
+	mov rax, 2000
 	call alloc
-	mov rbx, [rax - 8]
-	mov rcx, [rax - 16]
+
+	mov rax, 2000
+	call alloc
 
 	call free
 
