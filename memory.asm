@@ -351,5 +351,3 @@ free:
 
 section .data
 page_head: dq 0
-token_head: dq 0
-variable_count: dq 0
