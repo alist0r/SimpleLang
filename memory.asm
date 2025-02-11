@@ -73,7 +73,7 @@ check_bitmap:
 
 	mov rcx, 64 ;64 bits in a register to check
 	.check_for_zero:
-	mov rdx, rbx[rsi] ;put current byte of bitmap in dl
+	mov rdx, rbx[rsi] ;put current byte of bitmap in rdx
 	mov rax, 0x7FFFFFFFFFFFFFFF ;used to cmpare with rdx 011111... etc
 	or rdx, rax ;check significant bit 0 nor 0 = 1
 	not rdx ;negation of or produces nor

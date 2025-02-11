@@ -1,63 +1,10 @@
 ;token tyeps
-%define VARIABLE 0
+%define SYMBOL 0 ;variable function or label
 %define LITERAL 1
 %define OPERATOR 2
 %define KEYWORD 3
 %define DEFINITION 4
-%define FUNCTION 5
-%define LABEL 6
-%define SEMICOLON 7
-
-;sizes of tokens in bytes
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;var type 1 byte
-;key (where its in the heap) 8 bytes
-%define VARIABLE_SIZE 26
-
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;var type 1 byte
-;value/ptr if string 8 bytes
-;length of string if string 8 bytes
-%define LITERAL_SIZE 34
-
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;op type 1 byte
-%define OPERATOR_SIZE 18
-
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;keyword type 1 byte
-%define KEYWORD_SIZE 18
-
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;def type 1 byte
-%define DEFINITION_SIZE 18
-
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;TODO ?
-%define FUNCTION_SIZE 9
-
-;token type 1 byte
-;prv token ptr 8 bytes
-;next token ptr 8 bytes
-;label file offset/position 8 bytes
-%define LABEL_SIZE 25
-
-;token type 1 byte
-;prv token ptr 8 bytes
-%define SEMICOLON_SIZE 9
-
+%define SEMICOLON 5
 
 ;constent types/variable types/type types
 %define U64 0
@@ -70,231 +17,311 @@
 %define ENDIF 1
 %define GOTO 2
 
-global create_next_token
+;operator types
+%define ADDITION 0
+%define SUBTRACT 1
+%define MULT 2
+%define DIVISION 3
+%define LOGICAL_NOT 4
+%define LOGICAL_AND 5
+%define LOGICAL_OR 6
+%define BITWISE_NOT 7
+%define BITWISE_AND 8
+%define BITWISE_OR 9
+%define NOT_EQUAL 10
+%define EQUAL 11
+%define LESS_THEN_EQUAL 12
+%define GREATER_THEN_EQUAL 13
+%define LESS_THEN 14
+%define GREATER_THEN 15
+%define ASSIGNMENT 16
+%define SHIFT_LEFT 17
+%define SHIFT_RIGHT 18
+
+;token type 1 byte
+;next token 8 bytes
+;prv token 8 bytes
+;symbol type 1 byte
+;ptr to symbol name 8 bytes
+%define SYMBOL_SIZE 26
+
+;token type 1 byte
+;next token 8 bytes
+;prv token 8 bytes
+;literal value/string ptr 8 bytes
+;string len if string 8 bytes
+%define LITERAL_SIZE 33
+
+;token type 1 byte
+;next token 8 bytes
+;prv token 8 bytes
+;operator type 1 byte
+%define OPERATOR_SIZE 18
+
+;token type 1 byte
+;next token 8 bytes
+;prv token 8 bytes
+;keyword_type 1 byte
+%define KEYWORD_SIZE 18
+
+;token type 1 byte
+;next token 8 bytes
+;prv token 8 bytes
+;definition_type 1 byte
+%define DEFINITION_SIZE 18
+
+;token type 1 byte
+;next token 8 bytes
+;prv token 8 bytes
+%define SEMICOLON_SIZE 17
+
+global lexer
 
 extern exit
-extern alloc_token
-extern free_token
+extern alloc
+extern free
 
-is_lower_case:
-ret
+extern file_buffer
+extern file_len
 
-is_upper_case:
-ret
+section .text
+is_letter_or_number:
+	cmp dh, '0'
+	jb .not_num
+	cmp dh, '9'
+	ja .not_num
 
-is_num:
-ret
-
-;create new token and allocate memory for it
-;clobers:
-;inputs:
-;	rax = token type
-;	rdi = ptr to next
-;	rsi = ptr to prv token
-;	rdx = var type/operator type/keyword type/type type
-;	r10 = value/ptr to item in file buffer
-;	r8 = length of item in file buffer
-;outputs:
-;	rax = ptr to token
-make_token:
-	;if else block
-	cmp rax, VARIABLE
-	je .variable
-	cmp rax, LITERAL
-	je .literal
-	cmp rax, OPERATOR
-	je .operator
-	cmp rax, KEYWORD
-	je .keyword
-	cmp rax, TYPE
-	je .type
-	cmp rax, SEMICOLON
-	je .semicolon
-
-	.variable:
-	;check if rsi is 0
-	;if 0 allocate memory and set token_list_head to that memory
-	;if not 0 allocate memory and set ptr + 1 to that memory location
+	.hit:
+	mov rax, 1
+	ret
 	
-	;fill memory 
+	.not_num:
+	cmp dh, 'a'
+	jb .not_lower
+	cmp dh, 'z'
+	ja .not_lower
+	jmp .hit
+	
+	.not_lower:
+	cmp dh, 'A'
+	jb .not_upper
+	cmp dh, 'Z'
+	ja .not_upper
+	jmp .hit
+	
+	.not_upper:
+	mov rax, 0
 	ret
-	.literal:
-	ret
-	.operator:
-	ret
-	.keyword:
-	ret
-	.type:
-	ret
-	.semicolon:
-	ret
-	;call mmap to allocate memory for next token
-	;write next token and fill out ptrs
-	;write to the next token slot of the previous token
-
-;makes sure in range of buffer
-;clobers r12
-;inputs:
-;	rax = token base
-;	rdi = file buffer
-;	rsi = buffer size
-;outputs:
-;	r12 = 1 if in range 0 if out of range
-check_buffer_range:
-	cmp rax, rsi ;check if greatr or equal to buffer
-	jge .out_of_range ;if out of range
-	mov r12, 1 ;else put 1 in r12
-	ret
-	.out_of_range:
-	mov r12, 0 ;if out of range put 0 in r12
-	ret
+	
 
 
+lexer:
+	mov rbx, [file_buffer] ;get buffer addr
+	mov rsi, [lexer_position] ;get current offset
 
-;skims through buffer to find the starting point and end point of next token
-;clobers: rax, rdx, rbx
-;inputs:
-;	rax = end of last token location
-;	rdi = file buffer
-;	rsi = buffer size
-;	rdx = previous token ptr
-;outputs:
-;	rax = token ptr in heap
-;	r12 = token base in file buffer
-;	r13 = token len in file buffer
-create_next_token:
-	mov rbx, rdx ;move list head into rbx for later
-
+	;locate start of next thing to tokanize
 	.skip_whitespace:
-	xor rdx, rdx ;clear rdx for cmp
-	inc rax ;set rax to the next char
-	call check_buffer_range
-	cmp r12, 0 ;if 0 then not in range
-	jne .in_range ;if not 0 then in range
-	xor rdi, rdi ;reached EOF exit with code 0
-	call exit
+	inc rsi ;prepare for next byte
+	mov rdx, [file_len]
+	cmp rsi, rdx ;see if we have reached eof
+	jae .eof
 
-	.in_range:
-	mov dl, rdi[rax] ;move the next char into dl
-	cmp dl, ' ' ;compare next char to space
-	je .skip_whitespace ;if there is space check next char
-	cmp dl, '\t'
-	je .skip_whitespace ;if there is tab check next char
-	cmp dl, '\n'
-	je .skip_whitespace ;if there is new line check next char
+	xor rdx, rdx ;clear rdx, will read bytes
+	mov dl, rbx[rsi] ;get current byte
+	cmp dl, ' ' ;check if space
+	je .skip_whitespace
+	cmp dl, 0x0A ;check if new line
+	je .skip_whitespace
+	cmp dl, 0x09 ;check if tab
+	je .skip_whitespace
 
-	;else if block
-	cmp dl, ';' ;end of line
-	je .semicolon
-	cmp dl, '!' ;not
-	je .bang
-	cmp dl, '~' ;bitwise not
-	je .tilde
-	cmp dl, '+' ;add
+	;locate end of next thing to tokanize
+		;if + then done
+		;if - then done
+		;if * then done
+		;if / then done
+		;if ~ then done (bitwise not)
+		;if < check for < or =
+		;if > check for > or =
+		;if ! check for =
+		;if | check for |
+		;if & check for &
+	cmp dl, '+'
 	je .plus
-	cmp dl, '-' ;sub
+	cmp dl, '-'
 	je .minus
-	cmp dl, '=' ;assignment
-	je .equal
-	cmp dl, '>' ;greater then
-	je .greater_than
-	cmp dl, '<' ;less then
-	je .less_than
-	cmp dl, '&' ;and
-	je .and
-	cmp dl, '|' ;or
-	je .or
-	cmp dl, 'u' ;unsigned
-	je .unsigned
-	cmp dl, 'i' ;if or integer
-	je .signed
-	cmp dl, 'f' ;float
-	je .float
-	cmp dl, 'e' ;endif
-	je .endif
-	cmp dl, ''' ;char literal
-	je .single_quote
-	cmp dl, '"' ;string
-	je .double_quote
-	call is_lower_case
-	jc .lower_case
-	call is_upper_case
-	jc .upper_case
-	call is_num
-	jc .is_num
+	cmp dl, '*'
+	je .mult
+	cmp dl, '/'
+	je .div
+	cmp dl, '"'
+	je .string_lit
+	cmp dl, "'" ;' char
+	je .char_lit
+	cmp dl, '~'
+	je .bitwise_not
+	cmp dl, '<'
+	je .less_tree
+	cmp dl, '>'
+	je .greater_tree
+	cmp dl, '!'
+	je .not_tree
+	cmp dl, '|'
+	je .or_tree
+	cmp dl, '&'
+	je .and_tree
+	cmp dl, ';'
+	je .semi
 
-	;invalid input at this point
-	mov rdi, 2
+	;at this point its none of the operators which means we need to determin the
+	;dynamic length of the string 
+	mov rdi, rsi ;use rdi to find len
+	.find_len:
+	inc rdi ;check next byte
+	mov dh, rbx[rdi] ;get byte
+	cmp dh, ':' ;check if collen
+	je .label
+
+	call is_letter_or_number ;check if valid char (letter or number)
+
+	cmp rax, 1 ;check output of is letter or number
+	je .find_len
+	dec rdi ;if not valid char then it will be a symbol of rsi - rdi - 1 length
+	jmp .int_lit
+
+	;NOTE theres probably away to have an operator section to avoid
+	;     repeated code
+	.plus:
+	push rsi ;avoid clobs
+	push rbx
+
+	mov rax, OPERATOR_SIZE ;get size of toke
+	call alloc ;alloc space for token
+
+	pop rbx ;restore regs
+	pop rsi
+
+	mov rdx, OPERATOR ;get token type
+	mov [rax], rdx ;write type
+	mov rdx, ADDITION ;get op type
+	mov [rax + 17], rdx ;write op type
+	
+	call add_token_to_list
+	jmp .skip_whitespace
+	
+	.minus:
+	push rsi ;avoid clobers
+	push rbx
+
+	mov rax, OPERATOR_SIZE ;get size of toke
+	call alloc ;alloc space for token
+
+	pop rbx ;restore regs
+	pop rsi
+
+	mov rdx, OPERATOR ;get token type
+	mov [rax], rdx ;write type
+	mov rdx, SUBTRACT ;get op type
+	mov [rax + 17], rdx ;write op type
+	
+	call add_token_to_list
+	jmp .skip_whitespace
+
+	.mult:
+	push rsi ;avoid clobers
+	push rbx
+
+	mov rax, OPERATOR_SIZE ;get size of toke
+	call alloc ;alloc space for token
+
+	pop rbx ;restore regs
+	pop rsi
+
+	mov rdx, OPERATOR ;get token type
+	mov [rax], rdx ;write type
+	mov rdx, MULT ;get op type
+	mov [rax + 17], rdx ;write op type
+	
+	call add_token_to_list
+	jmp .skip_whitespace
+
+	.div:
+	push rsi ;avoid clobers
+	push rbx
+
+	mov rax, OPERATOR_SIZE ;get size of toke
+	call alloc ;alloc space for token
+
+	pop rbx ;restore regs
+	pop rsi
+
+	mov rdx, OPERATOR ;get token type
+	mov [rax], rdx ;write type
+	mov rdx, DIVISION ;get op type
+	mov [rax + 17], rdx ;write op type
+	
+	call add_token_to_list
+	jmp .skip_whitespace
+
+	.bitwise_not:
+	push rsi ;avoid clobers
+	push rbx
+
+	mov rax, OPERATOR_SIZE ;get size of toke
+	call alloc ;alloc space for token
+
+	pop rbx ;restore regs
+	pop rsi
+
+	mov rdx, OPERATOR ;get token type
+	mov [rax], rdx ;write type
+	mov rdx, BITWISE_NOT ;get op type
+	mov [rax + 17], rdx ;write op type
+	
+	call add_token_to_list
+	jmp .skip_whitespace
+
+	.string_lit:
+	.char_lit:
+	.less_tree:
+	.greater_tree:
+	.not_tree:
+	.or_tree:	
+	.and_tree:
+	.label:
+	.int_lit:
+	;need to check if float or int
+	;to be an int must be all number chars
+	;to be a float must contain decimal point
+	;if not int or float then it must be some kind of symbol
+	jmp .keyword
+	.keyword:
+	;need to check if keyword or definition
+	;if not must be some kind of symbol
+	jmp .symbol
+	.symbol:
+	.semi:
+	mov [lexer_position], rsi
+	ret
+
+	;get total length of thing to tokanize
+	;turn thing into a string
+	;do expression matching to determin how to tokanize it
+	;allocate space for a token
+	;make token and write token fields
+	;from lexer_position turn each symbol into a token untill semicolan
+	;return
+	.eof:
+	mov rax, 0
 	call exit
 
-	.semicolon:
-	;TODO preserve in register the end of this token
-	mov rax, SEMICOLON ;else make token
-	call make_token
-	ret
-
-	.bang:
-	;if ! then check if = is next then != else !
-	ret
-	.tilde:
-	;if ~ then done
-	ret
-	.plus:
-	;if + then done
-	ret
-	.minus:
-	;if - then done
-	ret
-	.equal:
-	;if = check for == then == else =
-	ret
-	.greater_than:
-	;if > check for >= then >= else check for >> then >> else >
-	ret
-	.less_than:
-	;if < check for <= then <= else check for << then << else <
-	ret
-	.and:
-	;if & check for && then && else &
-	ret
-	.or:
-	;if | check for || then || else |
-	ret
-	.unsigned:
-	;if u check for 8 16 32 64
-	ret
-	.signed:
-	;if i check for 8 16 32 64 and if
-	ret
-	.float:
-	;if f check for 64
-	ret
-	.endif:
-	;if e check for endif
-	ret
-	.single_quote:
-	;if ' check for a char and then another ' after (charicter literal)
-	ret
-	.double_quote:
-	;if " all text untill next " is a string
-	ret
-	.num:
-	;if number make sure all adgacent chars are numbers or a . for floats
-	ret
-	;if a number is followed by a char then thats a syntax error
-	.lower_case:
-	ret
-	.upper_case:
-	;if char make sure wether or not its a keyword
-	;if its not a keyword its a variable
-	;in this case the evaluated char is not valid
-	ret
-
-
-;change value or pointers
-modify_token:
-ret
-
-;frees memory token is useing
-destroy_token:
-ret
+section .data
+token_head: dq 0
+lexer_position: dq -1 ;start of loop will inc to 0
+if: db "if", 0
+endif: db "endif", 0
+goto: db "goto", 0
+print: db "print", 0
+int: db "i64", 0
+floating_point: db "f64", 0
+unsigned: db "u64", 0

@@ -1,21 +1,7 @@
-hi
-hello
-hello
-hello
-hello
-hello
-hello
-hello
-hello
-hello
-hello
-hello
-hello
-hello
-hello
-hello
-hello
-hello
-hello
-hello
-hello
+if 1
+	x=2;
+	goto foo;
+endif
+x = 1;
+foo:
+	y = 1;

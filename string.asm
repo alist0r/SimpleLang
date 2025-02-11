@@ -48,3 +48,32 @@ str_len:
 		test dl, dl ;if null char
 		jnz .loop ;loop if not null char
 	ret
+
+;clobers rax, rdx, rsi, rdi
+;inputs:
+;	rsi = string 1
+;	rdi = string 2
+;outputs:
+;	rax = 1 if match 0 if no match
+strings_match:
+	xor rdx, rdx ;clear rdx
+
+	.loop:
+	mov dl, [rsi] ;get current byte of str1
+	mov dh, [rdi] ;get current byte of str2
+	inc rsi ;prepare for next byte
+	inc rdi ;prepare for next byte
+	cmp dl, dh ;compare byte
+	je .match ;if same goto match
+
+	;not match
+	mov rax, 0 ;0 means no match
+	ret
+
+	.match:
+	cmp dl, 0 ;check if null char
+	jne .loop ;if not check next byte
+
+	;match and null char
+	mov rax, 1 ;1 means match
+	ret
