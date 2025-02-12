@@ -86,6 +86,13 @@ extern file_len
 
 section .text
 add_token_to_list:
+	;check if head is 0
+	;if 0 assign adress of given token
+	;if not 0 check next token
+	;if token->next is - then write adress of given token
+	;if not check next token and so on
+	;if inserted later in the list make sure to set previous token ptr to prv token
+	ret
 
 is_letter_or_number:
 	cmp dh, '0'
@@ -349,16 +356,6 @@ lexer:
 	
 	call add_token_to_list
 	jmp .skip_whitespace
-	
-
-
-	;find end of string literal
-	;change lexer position to end of string literal
-	;push '\0' to the stack
-	;push each byte to the stack in reverse order
-	;alloc enough space equal to strlen
-	;alloc token and point to allocated string
-	;save string in dynamic memory
 
 	.char_lit:
 	;make sure the next char is 1 char and the char after is another '
@@ -392,6 +389,7 @@ lexer:
 	;write string in memory
 	;alloc token
 	;put string in token
+	mov [lexer_position], rsi
 	ret ;allow parser to save the label in the symbol map
 	.int_lit:
 	;need to check if float or int
