@@ -48,9 +48,9 @@
 ;token type 1 byte
 ;next token 8 bytes
 ;prv token 8 bytes
+;literal type 1 byte
 ;literal value/string ptr 8 bytes
-;string len if string 8 bytes
-%define LITERAL_SIZE 33
+%define LITERAL_SIZE 26
 
 ;token type 1 byte
 ;next token 8 bytes
@@ -85,6 +85,8 @@ extern file_buffer
 extern file_len
 
 section .text
+add_token_to_list:
+
 is_letter_or_number:
 	cmp dh, '0'
 	jb .not_num
@@ -282,13 +284,115 @@ lexer:
 	jmp .skip_whitespace
 
 	.string_lit:
+	mov rdi, rsi ;use rdi to find the end quote
+	.string_loop:
+	inc rdi ;check next byte
+	mov dl, rbx[rdi] ;get byte
+	cmp dl, '"' ;check if end quote
+	jne .string_loop ;if not end quote then check next byte
+	
+	;strlen = rdi - rsi - 1
+	mov rcx, rdi
+	sub rcx, rsi
+	dec rcx
+	mov r8, rcx ;save copy of strlen for later
+
+	mov rsi, rdi ;update lexer position to be end of str
+
+	push 0 ;null char
+	cmp rcx, 0 ;see if empty string
+	je .end_of_str_loop
+
+	xor rdx, rdx ;clear rdx just in case
+	.push_str_loop:
+	dec rdi ;get prv byte
+	mov dl, rbx[rdi] ;get byte
+	push rdx ;put byte on the stack
+	loop .push_str_loop
+	.end_of_str_loop:
+
+	inc r8 ;+1 for null char
+	push r8 ;len
+	push rbx ;addr
+	push rsi ;lexer pos
+
+	mov rax, r8 ;strlen
+	call alloc
+
+	pop rsi ;get lexer pos
+	pop rbx ;get addr 
+	pop rcx ;get strlen
+	
+	xor rdi, rdi ;clear rdi for loop
+	.pop_str_loop:
+	pop rdx ;get char from stack
+	mov rax[rdi], dl ;save char in memory
+	inc rdi ;prepare to write next char
+	loop .pop_str_loop
+	
+	push rax ;save str
+	push rsi ;avoid clobers
+	push rbx
+
+	mov rax, LITERAL_SIZE ;get size of toke
+	call alloc ;alloc space for token
+
+	pop rbx ;restore regs
+	pop rsi
+	pop rdi ;get str back
+
+	mov rdx, LITERAL ;set token type
+	mov [rax], rdx ;place token type
+	mov rdx, STRING ;get value of string
+	mov [rax + 17], rdx ;place literal type
+	mov [rax + 18], rdi ;place str addr in token 
+	
+	call add_token_to_list
+	jmp .skip_whitespace
+	
+
+
+	;find end of string literal
+	;change lexer position to end of string literal
+	;push '\0' to the stack
+	;push each byte to the stack in reverse order
+	;alloc enough space equal to strlen
+	;alloc token and point to allocated string
+	;save string in dynamic memory
+
 	.char_lit:
+	;make sure the next char is 1 char and the char after is another '
+	;make token
+	;save char in token
+	jmp .skip_whitespace
+
 	.less_tree:
+	;check if < or <= or <<
+	jmp .skip_whitespace
+
 	.greater_tree:
+	;check if > or >= or >>
+	jmp .skip_whitespace
+
 	.not_tree:
-	.or_tree:	
+	;check if ! or !=
+	jmp .skip_whitespace
+
+	.or_tree:
+	;check if | or ||
+	jmp .skip_whitespace
+
 	.and_tree:
+	;check if & or &&
+	jmp .skip_whitespace
+
 	.label:
+	;rbx[rdi] location of collen
+	;rbx[rsi] location of first char
+	;write string in memory
+	;alloc token
+	;put string in token
+	ret ;allow parser to save the label in the symbol map
 	.int_lit:
 	;need to check if float or int
 	;to be an int must be all number chars
@@ -300,6 +404,8 @@ lexer:
 	;if not must be some kind of symbol
 	jmp .symbol
 	.symbol:
+
+	jmp .skip_whitespace
 	.semi:
 	mov [lexer_position], rsi
 	ret

@@ -31,6 +31,7 @@
 ;      |                        |
 ;4095  +------------------------+
 
+
 global init_memory
 global alloc
 global free
@@ -72,9 +73,9 @@ check_bitmap:
 	mov r8, rcx ;save which word we were at
 
 	mov rcx, 64 ;64 bits in a register to check
+	mov rax, 0x7FFFFFFFFFFFFFFF ;used to cmpare with rdx 011111... etc
 	.check_for_zero:
 	mov rdx, rbx[rsi] ;put current byte of bitmap in rdx
-	mov rax, 0x7FFFFFFFFFFFFFFF ;used to cmpare with rdx 011111... etc
 	or rdx, rax ;check significant bit 0 nor 0 = 1
 	not rdx ;negation of or produces nor
 	cmp rdx, 0 ;not instruction wont set zero flag
@@ -84,7 +85,7 @@ check_bitmap:
 	xor r9, r9 ;reset counter
 
 	.shift:
-	shl rdx, 1 ;check next bit of word on next loop
+	ror rax, 1 ;check next bit of word on next loop
 	loop .check_for_zero ;if not 64 then go again
 
 	;if out of bits
