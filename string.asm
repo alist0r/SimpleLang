@@ -1,5 +1,4 @@
 global print_string
-global str_len
 
 extern exit
 
@@ -22,24 +21,78 @@ print_string:
 		mov rdi, 1
 		call exit ;TODO error handling
 
+;converts string to float
+;inputs
+;	rsi = string
+;output
+;	rax = float
+atof:
+;checks if all members of a string are numbers
+;inputs
+;	rsi = string
+;output
+;	rax = true false value
+is_int:
+	mov dl, [rsi] ;get char
+	cmp dl, 0 ;see if null char
+	je .is_num
+	cmp dl, '0' ;see if below 0
+	jb .not_num
+	cmp dl, '9' ;see if above 9
+	jb .not_num
+	inc rsi ;prepare to get next byte
+	jmp .is_int
+
+	.not_num:
+	mov rax, 0 ;return false
+	ret
+	
+	.is_num:
+	mov rax, 1 ;return true
+	ret
+
 ;converts string to int
 ;clobers
 ;inputs
+;	rax = string
 ;outputs
-string_to_int:
+;	rax = int
+;	rdx = error
+atoi:
+	mov rsi, rax ;prepare for call
+	mov r8, rsi ;save the string
+	call is_int ;check if int
+	cmp rax, 0
+	je .error ;if not int then error
+
+	;improptu str len bc is_int moved rsi to null char
+	mov rcx, rsi
+	sub rcx, r8 
+	dec rcx,
+	
+	
+
+	.success:
+	mov rdx, 0
+	ret
+	.error:
+	mov rdx,1 
+	ret
+
+
 ;converts int to string
 ;inputs:
 ;	inputs
 ;outputs:
 ;	outputs
-int_to_string:
+itoa:
 ;gets length of string (must have null char)
 ;clobers rax, rdx 
 ;inputs:
 ;	rsi = string addr
 ;outputs:
 ;	rax = length
-str_len:
+strlen:
 	mov rax, -1 ;init rax
 	xor rdx, rdx ;clear rdx
 	.loop:
@@ -55,7 +108,7 @@ str_len:
 ;	rdi = string 2
 ;outputs:
 ;	rax = 1 if match 0 if no match
-strings_match:
+strcmp:
 	xor rdx, rdx ;clear rdx
 
 	.loop:

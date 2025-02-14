@@ -4,7 +4,11 @@
 %define OPERATOR 2
 %define KEYWORD 3
 %define DEFINITION 4
-%define SEMICOLON 5
+
+;symbol types
+%define VARIABLE 0
+%define LABEL 1
+%define FUNCTION 2
 
 ;constent types/variable types/type types
 %define U64 0
@@ -30,10 +34,10 @@
 %define BITWISE_OR 9
 %define NOT_EQUAL 10
 %define EQUAL 11
-%define LESS_THEN_EQUAL 12
-%define GREATER_THEN_EQUAL 13
-%define LESS_THEN 14
-%define GREATER_THEN 15
+%define LESS_THAN_EQUAL 12
+%define GREATER_THAN_EQUAL 13
+%define LESS_THAN 14
+%define GREATER_THAN 15
 %define ASSIGNMENT 16
 %define SHIFT_LEFT 17
 %define SHIFT_RIGHT 18
@@ -70,11 +74,6 @@
 ;definition_type 1 byte
 %define DEFINITION_SIZE 18
 
-;token type 1 byte
-;next token 8 bytes
-;prv token 8 bytes
-%define SEMICOLON_SIZE 17
-
 global lexer
 
 extern exit
@@ -85,13 +84,86 @@ extern file_buffer
 extern file_len
 
 section .text
+;inputs
+;	rax = token
+;outputs
+;	none
 add_token_to_list:
-	;check if head is 0
-	;if 0 assign adress of given token
-	;if not 0 check next token
-	;if token->next is - then write adress of given token
-	;if not check next token and so on
-	;if inserted later in the list make sure to set previous token ptr to prv token
+	mov rdx, [token_head] ;prepare for cmp
+	cmp rdx, 0 ;check if list is empty
+	je .empty_list
+
+	mov rdx, [rdx] ;check token
+	.goto_end_of_list:
+	mov rcx, [rdx + 1] ;get ptr 
+	cmp rcx, 0 ;check if null
+	je .found_end
+
+	mov rdx, [rdx + 1]
+	jmp .goto_end_of_list
+
+	.empty_list:
+	mov [token_head], rax
+	ret
+	
+	.found_end:
+	mov [rdx + 1], rax ;put next link in prv
+	mov [rax + 9], rdx ;put prv link in next
+	ret
+
+;clobers r8
+;preservs rsi, rbx
+;inputs
+;	rax = token type
+;	rcx = token subtype
+;	rdx = token value
+;outputs
+;	rax = token address
+make_token:
+	cmp rax, SYMBOL
+	je .size_big
+	cmp rax, LITERAL
+	je .size_big
+	cmp rax, OPERATOR
+	je .size_small
+	cmp rax, KEYWORD
+	je .size_small
+	cmp rax, DEFINITION
+	je .size_small
+	.size_big:
+	mov r8, SYMBOL_SIZE
+	jmp .next_step
+	.size_small:
+	mov r8, OPERATOR_SIZE
+	jmp .next_step
+
+	.next_step:
+	push rax
+	push rcx
+	push rdx
+	push rsi ;avoid clobs
+	push rbx
+
+	mov rax, r8 ;get size of toke
+	call alloc ;alloc space for token
+
+	pop rbx ;restore regs
+	pop rsi
+	pop rdx
+	pop rcx
+	pop r8
+
+	mov [rax], r8 ;write type
+	mov [rax + 17], rcx ;write sub type
+
+	cmp r8, LITERAL
+	je .add_value
+	cmp r8, SYMBOL
+	je .add_value
+	ret
+
+	.add_value:
+	mov [rax + 18], rdx
 	ret
 
 is_letter_or_number:
@@ -165,8 +237,6 @@ lexer:
 	je .div
 	cmp dl, '"'
 	je .string_lit
-	cmp dl, "'" ;' char
-	je .char_lit
 	cmp dl, '~'
 	je .bitwise_not
 	cmp dl, '<'
@@ -198,95 +268,39 @@ lexer:
 	dec rdi ;if not valid char then it will be a symbol of rsi - rdi - 1 length
 	jmp .int_lit
 
-	;NOTE theres probably away to have an operator section to avoid
-	;     repeated code
 	.plus:
-	push rsi ;avoid clobs
-	push rbx
-
-	mov rax, OPERATOR_SIZE ;get size of toke
-	call alloc ;alloc space for token
-
-	pop rbx ;restore regs
-	pop rsi
-
-	mov rdx, OPERATOR ;get token type
-	mov [rax], rdx ;write type
-	mov rdx, ADDITION ;get op type
-	mov [rax + 17], rdx ;write op type
-	
+	mov rax, OPERATOR
+	mov rcx, ADDITION
+	call make_token;alloc space for token
 	call add_token_to_list
 	jmp .skip_whitespace
 	
+	;TODO the '-' symbol may actualy be indicating a negative number
 	.minus:
-	push rsi ;avoid clobers
-	push rbx
-
-	mov rax, OPERATOR_SIZE ;get size of toke
-	call alloc ;alloc space for token
-
-	pop rbx ;restore regs
-	pop rsi
-
-	mov rdx, OPERATOR ;get token type
-	mov [rax], rdx ;write type
-	mov rdx, SUBTRACT ;get op type
-	mov [rax + 17], rdx ;write op type
-	
+	mov rax, OPERATOR
+	mov rcx, SUBTRACT
+	call make_token;alloc space for token
 	call add_token_to_list
 	jmp .skip_whitespace
 
 	.mult:
-	push rsi ;avoid clobers
-	push rbx
-
-	mov rax, OPERATOR_SIZE ;get size of toke
-	call alloc ;alloc space for token
-
-	pop rbx ;restore regs
-	pop rsi
-
-	mov rdx, OPERATOR ;get token type
-	mov [rax], rdx ;write type
-	mov rdx, MULT ;get op type
-	mov [rax + 17], rdx ;write op type
-	
+	mov rax, OPERATOR
+	mov rcx, MULT
+	call make_token;alloc space for token
 	call add_token_to_list
 	jmp .skip_whitespace
 
 	.div:
-	push rsi ;avoid clobers
-	push rbx
-
-	mov rax, OPERATOR_SIZE ;get size of toke
-	call alloc ;alloc space for token
-
-	pop rbx ;restore regs
-	pop rsi
-
-	mov rdx, OPERATOR ;get token type
-	mov [rax], rdx ;write type
-	mov rdx, DIVISION ;get op type
-	mov [rax + 17], rdx ;write op type
-	
+	mov rax, OPERATOR
+	mov rcx, DIVISION 
+	call make_token;alloc space for token
 	call add_token_to_list
 	jmp .skip_whitespace
 
 	.bitwise_not:
-	push rsi ;avoid clobers
-	push rbx
-
-	mov rax, OPERATOR_SIZE ;get size of toke
-	call alloc ;alloc space for token
-
-	pop rbx ;restore regs
-	pop rsi
-
-	mov rdx, OPERATOR ;get token type
-	mov [rax], rdx ;write type
-	mov rdx, BITWISE_NOT ;get op type
-	mov [rax + 17], rdx ;write op type
-	
+	mov rax, OPERATOR
+	mov rcx, BITWISE_NOT 
+	call make_token;alloc space for token
 	call add_token_to_list
 	jmp .skip_whitespace
 
@@ -357,45 +371,185 @@ lexer:
 	call add_token_to_list
 	jmp .skip_whitespace
 
-	.char_lit:
-	;make sure the next char is 1 char and the char after is another '
-	;make token
-	;save char in token
-	jmp .skip_whitespace
-
 	.less_tree:
-	;check if < or <= or <<
+	mov rax, OPERATOR ;prepareing for later allocation
+
+	mov rdi, rsi ;get lexer pos
+	inc rdi ;check next byte
+	mov dl, rbx[rdi] ;grab byte
+
+	cmp dl, '='
+	je .less_equal
+	cmp dl, '<'
+	je .bit_lshift
+	jmp .less_than
+
+	.less_equal:
+	mov rcx, LESS_THAN_EQUAL 
+	inc rsi ;start lexer from after this operator
+	jmp .end_less_tree
+	
+	.bit_lshift:
+	mov rcx, SHIFT_LEFT
+	inc rsi ;start lexer from after this operator
+	jmp .end_less_tree
+
+	.less_than:
+	mov rcx, LESS_THAN
+
+	.end_less_tree:
+	call make_token;alloc space for token
+	call add_token_to_list
 	jmp .skip_whitespace
 
 	.greater_tree:
-	;check if > or >= or >>
+	mov rax, OPERATOR ;prepareing for later allocation
+
+	mov rdi, rsi ;get lexer pos
+	inc rdi ;check next byte
+	mov dl, rbx[rdi] ;grab byte
+
+	cmp dl, '='
+	je .greater_equal
+	cmp dl, '>'
+	je .bit_rshift
+	jmp .greater_than
+
+	.greater_equal:
+	mov rcx, GREATER_THAN_EQUAL
+	inc rsi ;start lexer from after this operator
+	jmp .end_greater_tree
+	
+	.bit_rshift:
+	mov rcx, SHIFT_RIGHT
+	inc rsi ;start lexer from after this operator
+	jmp .end_greater_tree
+
+	.greater_than:
+	mov rcx, GREATER_THAN 
+
+	.end_greater_tree:
+	call make_token;alloc space for token
+	call add_token_to_list
 	jmp .skip_whitespace
 
 	.not_tree:
-	;check if ! or !=
+	mov rax, OPERATOR ;prepareing for later allocation
+
+	mov rdi, rsi ;get lexer pos
+	inc rdi ;check next byte
+	mov dl, rbx[rdi] ;grab byte
+
+	cmp dl, '='
+	je .not_equal
+
+	;logical not
+	mov rcx, LOGICAL_NOT
+	jmp .end_not_tree
+
+	.not_equal:
+	mov rcx, NOT_EQUAL
+	inc rsi ;start lexer from after this operator
+	jmp .end_not_tree
+
+	.end_not_tree:
+	call make_token ;alloc space for token
+	call add_token_to_list
 	jmp .skip_whitespace
 
 	.or_tree:
-	;check if | or ||
-	jmp .skip_whitespace
+	mov rax, OPERATOR ;prepareing for later allocation
 
+	mov rdi, rsi ;get lexer pos
+	inc rdi ;check next byte
+	mov dl, rbx[rdi] ;grab byte
+
+	cmp dl, '|'
+	je .logical_or
+
+	;bitwise or
+	mov rcx, BITWISE_OR
+	jmp .end_or_tree
+
+	.logical_or:
+	mov rcx, LOGICAL_OR
+	inc rsi ;start lexer from after this operator
+	jmp .end_not_tree
+
+	.end_or_tree:
+	call make_token ;alloc space for token
+	call add_token_to_list
+	jmp .skip_whitespace
+	
 	.and_tree:
-	;check if & or &&
-	jmp .skip_whitespace
+	mov rax, OPERATOR ;prepareing for later allocation
 
+	mov rdi, rsi ;get lexer pos
+	inc rdi ;check next byte
+	mov dl, rbx[rdi] ;grab byte
+
+	cmp dl, '&'
+	je .logical_and
+
+	;bitwise or
+	mov rcx, BITWISE_AND
+	jmp .end_and_tree
+
+	.logical_and:
+	mov rcx, LOGICAL_AND
+	inc rsi ;start lexer from after this operator
+	jmp .end_and_tree
+
+	.end_and_tree:
+	call make_token ;alloc space for token
+	call add_token_to_list
+	jmp .skip_whitespace
+	
 	.label:
-	;rbx[rdi] location of collen
-	;rbx[rsi] location of first char
-	;write string in memory
-	;alloc token
-	;put string in token
-	mov [lexer_position], rsi
+	push rdi ;save end of label for later
+	mov rdx, 0 ;null char
+	push rdx ;put on 0 the stack
+
+	mov rcx, rdi ;strlen
+	sub rcx, rsi
+	mov r8, rcx ;save strlen for later
+	dec rcx ;dont need null char in loop
+	
+	.label_push_loop:
+	dec rdi ;get prv byte
+	mov dl, rbx[rdi] ;bring byte into regs
+	push rdx ;put byte on the stack
+	loop .label_push_loop
+
+	mov rax, r8 ;get size of string
+	push r8
+	call alloc ;allocate bytes for string
+	
+	pop rcx ;get size back
+	xor rdi, rdi ;prepare rdi for offset
+	.label_pop_loop:
+	pop rdx ;get char off the stack
+	mov dl, rax[rdi] ;move it to the heap
+	inc rdi ;prepare for next byte
+	loop .label_pop_loop
+	mov rdx, rax ;put str in rdx for maketoken call
+	mov rax, SYMBOL ;put token type for token call
+	mov rcx, LABEL ;put symbol subtype
+	call make_token
+	pop r8 ;get end of label back
+	mov [lexer_position], r8 ;save lexer poition as we go to the parser
 	ret ;allow parser to save the label in the symbol map
+
 	.int_lit:
-	;need to check if float or int
-	;to be an int must be all number chars
-	;to be a float must contain decimal point
-	;if not int or float then it must be some kind of symbol
+	;if all nums
+	;	if . at rdi +1
+	;		check float
+	;	else
+	;		is num
+	;else
+	;	is variable name
+	;	or keywoed
+	
 	jmp .keyword
 	.keyword:
 	;need to check if keyword or definition
@@ -404,6 +558,7 @@ lexer:
 	.symbol:
 
 	jmp .skip_whitespace
+
 	.semi:
 	mov [lexer_position], rsi
 	ret

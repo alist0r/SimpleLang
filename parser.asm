@@ -13,6 +13,12 @@ section .text
 ;	none
 init_symbol_map:
 
+hash:
+
+lookup:
+
+put:
+
 ;clobers
 ;inputs:
 ;	none
