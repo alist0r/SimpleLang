@@ -80,6 +80,9 @@ extern exit
 extern alloc
 extern free
 
+extern strcmp
+extern atoi
+
 extern file_buffer
 extern file_len
 
@@ -540,36 +543,130 @@ lexer:
 	mov [lexer_position], r8 ;save lexer poition as we go to the parser
 	ret ;allow parser to save the label in the symbol map
 
+	;TODO add float support
 	.int_lit:
-	;if all nums
-	;	if . at rdi +1
-	;		check float
-	;	else
-	;		is num
-	;else
-	;	is variable name
-	;	or keywoed
-	
-	jmp .keyword
-	.keyword:
-	;need to check if keyword or definition
-	;if not must be some kind of symbol
-	jmp .symbol
-	.symbol:
+	;save buffer ptrs
+	mov r10, rdi
 
+	;str len 
+	mov rcx, rdi
+	sub rcx, rsi
+	dec rcx
+
+	mov r11, rcx ;need to pop off stack later
+
+	push 0 ;null char
+	;TODO i do this pattern in 3 different places i can refactore this with
+	;     a proc
+	;put string on the stack
+	xor rdx, rdx
+	.lit_push:
+	dec rdi ; prv byte
+	mov dl, rbx[rdi]
+	push rdx	
+	loop .lit_push
+
+	mov rax, rsp ;stack ptr is pointing to my string
+	call atoi ;turn str to int
+	cmp rdx, 0 ;see if error
+	jne .keyword ;if error then not int
+	
+	mov rax, LITERAL ;put token type for token call
+	mov rcx, U64 ;put literal subtype
+	mov rdx, rax ;value to put in token
+	call make_token
+	call add_token_to_list
+
+	mov rcx, r11 ;get str len back
+	inc rcx ;need to pop null char
+	.lit_pop:
+	pop rdx ;clear stack
+	loop .lit_pop
+
+	mov rsi, r10 ;put lexer pos at end of string
+	jmp .skip_whitespace
+	
+	.keyword:
+	mov r9, rsi ;save string
+	mov rdi, if ;check if if
+	call strcmp
+	cmp rax, 1
+	je .if
+
+	mov rsi, r9 ;string on stack
+	mov rdi, endif ;check if endif
+	call strcmp
+	cmp rax, 1
+	je .endif
+
+	mov rsi, r9 ;string on stack
+	mov rdi, goto ;check if goto
+	call strcmp
+	cmp rax, 1
+	je .goto
+
+	mov rsi, r9 ;string on stack
+	mov rdi, unsigned ;check if unsigned
+	call strcmp
+	cmp rax, 1
+	je .unsigned
+	jmp .symbol ;not a keyword
+
+	.if:
+	mov rcx, IF
+	jmp .end_keyword
+
+	.endif:
+	mov rcx, ENDIF
+	jmp .end_keyword
+
+	.goto:
+	mov rcx, GOTO
+	jmp .end_keyword
+
+	.unsigned:
+	mov rax, DEFINITION
+	mov rcx, U64
+	call make_token
+	call add_token_to_list
+	mov rsi, r10
+	jmp .skip_whitespace
+	
+	.end_keyword:
+	mov rax, KEYWORD
+	call make_token
+	call add_token_to_list
+	mov rsi, r10
+	jmp .skip_whitespace
+
+	.symbol:
+	mov rax, r11 ;get strlen
+	inc rax ;include null char
+	push rax ;save len
+	push rbx ;buffer
+	push r10 ;end of str
+	call alloc
+	pop rsi ;lexer pos
+	pop rbx ;buffer
+	pop rcx ;get len back
+
+	xor rdi, rdi
+	.sym_pop:
+	pop rdx ;clear stack
+	mov rax[rdi], dl
+	inc rdi
+	loop .sym_pop
+
+	mov rax, SYMBOL ;put token type for token call
+	mov rcx, VARIABLE ;put literal subtype
+	mov rdx, rax ;value to put in token
+	call make_token
 	jmp .skip_whitespace
 
 	.semi:
 	mov [lexer_position], rsi
 	ret
 
-	;get total length of thing to tokanize
-	;turn thing into a string
-	;do expression matching to determin how to tokanize it
-	;allocate space for a token
-	;make token and write token fields
-	;from lexer_position turn each symbol into a token untill semicolan
-	;return
 	.eof:
 	mov rax, 0
 	call exit

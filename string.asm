@@ -1,4 +1,6 @@
 global print_string
+global atoi
+global strcmp
 
 extern exit
 
@@ -39,9 +41,9 @@ is_int:
 	cmp dl, '0' ;see if below 0
 	jb .not_num
 	cmp dl, '9' ;see if above 9
-	jb .not_num
+	ja .not_num
 	inc rsi ;prepare to get next byte
-	jmp .is_int
+	jmp is_int
 
 	.not_num:
 	mov rax, 0 ;return false
@@ -52,7 +54,7 @@ is_int:
 	ret
 
 ;converts string to int
-;clobers
+;clobers rax, rsi, rcx, r8, rdx
 ;inputs
 ;	rax = string
 ;outputs
@@ -68,9 +70,33 @@ atoi:
 	;improptu str len bc is_int moved rsi to null char
 	mov rcx, rsi
 	sub rcx, r8 
-	dec rcx,
+
+	mov rsi, r8 ;replace string
+	xor r8, r8 ;use r8 to stor res
+
+	.get_num:
+	push rcx ;save strlen
+
+
+	mov rax, 10 ;base 10
+	mov r9, 10
+	.loop:
+	mul r9 ;get 10^rcx
+	loop .loop
+	mov rax, r9 ;save result
 	
+	pop rcx ;get strlen
+
+	mov rdx, [rsi] ;get char
+	sub rdx, '0' ;get dig
+	mul rdx  ;multiply power of 10 by dig
+	add r8, rdx ;store res
 	
+	cmp rcx, 0
+	dec rcx
+	jne .get_num
+
+	mov rax, r8 ;caller expects res in rax
 
 	.success:
 	mov rdx, 0
