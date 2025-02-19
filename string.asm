@@ -90,7 +90,7 @@ atoi:
 	mov rdx, [rsi] ;get char
 	sub rdx, '0' ;get dig
 	mul rdx  ;multiply power of 10 by dig
-	add r8, rdx ;store res
+	add r8, rax ;store res
 	
 	cmp rcx, 0
 	dec rcx

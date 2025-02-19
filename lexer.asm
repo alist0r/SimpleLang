@@ -86,6 +86,8 @@ extern atoi
 extern file_buffer
 extern file_len
 
+;TODO somewhere i cobered the return address from my stack to the main proc
+
 section .text
 ;inputs
 ;	rax = token
